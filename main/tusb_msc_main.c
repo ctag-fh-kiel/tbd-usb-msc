@@ -21,6 +21,8 @@
 #include "driver/gpio.h"
 #include "tinyusb.h"
 #include "tusb_msc_storage.h"
+#include "esp_ota_ops.h"
+
 #ifdef CONFIG_EXAMPLE_STORAGE_MEDIA_SDMMC
 #include "sdmmc_cmd.h"
 #include "diskio_impl.h"
@@ -284,10 +286,29 @@ static int console_exit(int argc, char **argv)
     return 0;
 }
 
+void boot_into_slot(int slot) { // slot 0 or 1
+    esp_partition_subtype_t st = (slot == 0)
+        ? ESP_PARTITION_SUBTYPE_APP_OTA_0
+        : ESP_PARTITION_SUBTYPE_APP_OTA_1;
+    const esp_partition_t *p = esp_partition_find_first(ESP_PARTITION_TYPE_APP, st, NULL);
+    if (!p) return;
+    printf("Try to boot into %s\n", p->label);
+    if (esp_ota_set_boot_partition(p) == ESP_OK) esp_restart();
+    printf("Boot into %s\n not successful", p->label);
+}
+
 // callback that is delivered when storage is mounted/unmounted by application.
 static void storage_mount_changed_cb(tinyusb_msc_event_t *event)
 {
+    static bool first_time = false;
     ESP_LOGI(TAG, "Storage mounted to application: %s", event->mount_changed_data.is_mounted ? "Yes" : "No");
+    // when storage is dismounted for the first time, boot into ota_0
+    if (!first_time && tinyusb_msc_storage_in_use_by_usb_host()){
+        first_time = true;
+    }
+    if (first_time && !tinyusb_msc_storage_in_use_by_usb_host()){
+        boot_into_slot(0);
+    }
 }
 
 #ifdef CONFIG_EXAMPLE_STORAGE_MEDIA_SPIFLASH

@@ -2,6 +2,8 @@ set(priv_requires fatfs console)
 
 if(CONFIG_EXAMPLE_STORAGE_MEDIA_SPIFLASH)
     list(APPEND priv_requires wear_levelling esp_partition)
+else()
+    list(APPEND priv_requires esp_partition app_update)
 endif()
 
 idf_component_register(
