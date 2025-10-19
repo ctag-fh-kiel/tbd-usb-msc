@@ -22,6 +22,7 @@
 #include "tinyusb.h"
 #include "tusb_msc_storage.h"
 #include "esp_ota_ops.h"
+#include "spi_api.h"
 
 #ifdef CONFIG_EXAMPLE_STORAGE_MEDIA_SDMMC
 #include "sdmmc_cmd.h"
@@ -487,6 +488,9 @@ void app_main(void)
     ESP_ERROR_CHECK(tinyusb_driver_install(&tusb_cfg));
     ESP_LOGI(TAG, "USB MSC initialization DONE");
 
+    // start spi_api
+    spi_start();
+
     esp_console_repl_config_t repl_config = ESP_CONSOLE_REPL_CONFIG_DEFAULT();
     /* Prompt to be printed before each line.
      * This can be customized, made dynamic, etc.
@@ -517,4 +521,6 @@ void app_main(void)
     xSemaphoreTake(_wait_console_smp, portMAX_DELAY);
     ESP_ERROR_CHECK(esp_console_stop_repl(repl));
     vSemaphoreDelete(_wait_console_smp);
+
+
 }
