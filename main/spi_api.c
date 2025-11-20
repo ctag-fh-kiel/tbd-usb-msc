@@ -11,6 +11,11 @@ static spi_slave_transaction_t transaction;
 static uint8_t *send_buffer, *receive_buffer;
 
 #define RCV_HOST    SPI3_HOST // SPI2 connects to rp2350 spi1
+#define GPIO_HANDSHAKE GPIO_NUM_50 // GPIO50 is used for handshake line, P4_PICO_02 which is GPIO18 on rp2350
+#define GPIO_MOSI GPIO_NUM_23
+#define GPIO_MISO GPIO_NUM_22
+#define GPIO_SCLK GPIO_NUM_21
+#define GPIO_CS GPIO_NUM_20
 
 typedef enum{
     GetFirmwareInfo = 0x19
@@ -90,7 +95,7 @@ static void api_task(void* pvParameters){
         if (requestType == GetFirmwareInfo){
             ESP_LOGI("SpiAPI", "GetFirmwareInfo");
             {
-                char info[1024] = "{\"HWV\": \"DADA\", \"FWV\": \"tusb_msc_1.0\", \"OTA\": \"";
+                char info[1024] = "{\"HWV\": \"DADA\", \"FWV\": \"tusb_msc_1.1\", \"OTA\": \"";
                 const char* ota_label = esp_get_current_ota_label();
                 strcat(info, ota_label);
                 strcat(info, "\"}");
@@ -101,13 +106,23 @@ static void api_task(void* pvParameters){
     }
 }
 
+// Called after a transaction is queued and ready for pickup by master. We use this to set the handshake line high.
+IRAM_ATTR static void spi_post_setup_cb(spi_slave_transaction_t *trans){
+    gpio_set_level(GPIO_HANDSHAKE, 1);
+}
+
+// Called after transaction is sent/received. We use this to set the handshake line low.
+IRAM_ATTR static void spi_post_trans_cb(spi_slave_transaction_t *trans){
+    gpio_set_level(GPIO_HANDSHAKE, 0);
+}
+
 void spi_start(){
     ESP_LOGI("spi_api", "spi_start()");
     //Configuration for the SPI bus
     spi_bus_config_t buscfg = {
-        .mosi_io_num = GPIO_NUM_23,
-        .miso_io_num = GPIO_NUM_22,
-        .sclk_io_num = GPIO_NUM_21,
+        .mosi_io_num = GPIO_MOSI,
+        .miso_io_num = GPIO_MISO,
+        .sclk_io_num = GPIO_SCLK,
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
         .data4_io_num = -1,
@@ -123,13 +138,27 @@ void spi_start(){
 
     //Configuration for the SPI slave interface
     spi_slave_interface_config_t slvcfg = {
-        .spics_io_num = GPIO_NUM_20,
+        .spics_io_num = GPIO_CS,
         .flags = 0,
         .queue_size = 1,
         .mode = 3,
-        .post_setup_cb = 0,
-        .post_trans_cb = 0
+        .post_setup_cb = spi_post_setup_cb,
+        .post_trans_cb = spi_post_trans_cb
     };
+
+    //Configuration for the handshake line
+    gpio_config_t io_conf = {
+        .pin_bit_mask = BIT64(GPIO_HANDSHAKE),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+        .hys_ctrl_mode = GPIO_HYS_SOFT_DISABLE
+    };
+
+    //Configure handshake line as output
+    gpio_config(&io_conf);
+    gpio_set_level(GPIO_HANDSHAKE, 0);
 
     send_buffer = (uint8_t*)spi_bus_dma_memory_alloc(RCV_HOST, 2048, 0);
     send_buffer[0] = 0xCA;
