@@ -334,6 +334,14 @@ static esp_err_t storage_init_sdmmc(sdmmc_card_t **card)
 
     ESP_LOGI(TAG, "Initializing SDCard");
 
+    // reset SD-Card, config EXAMPLE_PIN_SD_RESET to output and toggle
+    gpio_reset_pin(CONFIG_EXAMPLE_PIN_SD_RESET);
+    gpio_set_direction(CONFIG_EXAMPLE_PIN_SD_RESET, GPIO_MODE_OUTPUT);
+    gpio_set_level(CONFIG_EXAMPLE_PIN_SD_RESET, 1);
+    vTaskDelay(pdMS_TO_TICKS(100));
+    gpio_set_level(CONFIG_EXAMPLE_PIN_SD_RESET, 0);
+    vTaskDelay(pdMS_TO_TICKS(100));
+
     // By default, SD card frequency is initialized to SDMMC_FREQ_DEFAULT (20MHz)
     // For setting a specific frequency, use host.max_freq_khz (range 400kHz - 40MHz for SDMMC)
     // Example: for fixed frequency of 10MHz, use host.max_freq_khz = 10000;

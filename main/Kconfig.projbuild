@@ -36,6 +36,12 @@ menu "TinyUSB MSC Example Configuration"
 
         if SOC_SDMMC_USE_GPIO_MATRIX
 
+            config EXAMPLE_PIN_SD_RESET
+                int "RESET GPIO number"
+                range ENV_GPIO_RANGE_MIN ENV_GPIO_OUT_RANGE_MAX
+                default 34 if IDF_TARGET_ESP32S3
+                default 45 if IDF_TARGET_ESP32P4
+
             config EXAMPLE_PIN_CMD
                 int "CMD GPIO number"
                 range ENV_GPIO_RANGE_MIN ENV_GPIO_IN_RANGE_MAX
