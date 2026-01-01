@@ -18,9 +18,21 @@ static uint8_t *send_buffer, *receive_buffer;
 #define GPIO_CS GPIO_NUM_20
 
 typedef enum{
-    GetFirmwareInfo = 0x19
-    // returns json {"HWV": hardware version, "FWV": firmware version, "OTA": active ota partition}
+    Reboot = 0x13, // reboots the device
+    GetFirmwareInfo = 0x19, // returns json {"HWV": hardware version, "FWV": firmware version, "OTA": active ota partition}
+    RebootToOTAX = 0x22, // reboots the device to OTAX, args [X (uint8_t)]
 } RequestType;
+
+static void boot_into_slot(int slot) { // slot 0 or 1
+    esp_partition_subtype_t st = (slot == 0)
+        ? ESP_PARTITION_SUBTYPE_APP_OTA_0
+        : ESP_PARTITION_SUBTYPE_APP_OTA_1;
+    const esp_partition_t *p = esp_partition_find_first(ESP_PARTITION_TYPE_APP, st, NULL);
+    if (!p) return;
+    printf("Try to boot into %s\n", p->label);
+    if (esp_ota_set_boot_partition(p) == ESP_OK) esp_restart();
+    printf("Boot into %s\n not successful", p->label);
+}
 
 static const char* esp_get_current_ota_label(void){
     static char label[8] = {0};
@@ -37,6 +49,23 @@ static const char* esp_get_current_ota_label(void){
     else{
         return "factory"; // or return NULL if you prefer
     }
+}
+
+static int count_bootable_ota_partitions(void) {
+    int count = 0;
+    esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
+
+    while (it != NULL) {
+        const esp_partition_t *p = esp_partition_get(it);
+        if (p->subtype >= ESP_PARTITION_SUBTYPE_APP_OTA_MIN &&
+            p->subtype <= ESP_PARTITION_SUBTYPE_APP_OTA_MAX) {
+            count++;
+            }
+        it = esp_partition_next(it);
+    }
+
+    esp_partition_iterator_release(it);
+    return count;
 }
 
 static bool transmitCString(const RequestType reqType, const char* str){
@@ -90,6 +119,7 @@ static void api_task(void* pvParameters){
 
         // parse request
         RequestType requestType = (RequestType)(rcv_data[2]);
+        const int uint8_param_0 = rcv_data[3]; // first request parameter, e.g. channel, favorite number, ...
 
         // handle request
         if (requestType == GetFirmwareInfo){
@@ -102,6 +132,22 @@ static void api_task(void* pvParameters){
                 ESP_LOGI("SpiAPI", "Firmware info: %s", info);
                 result = transmitCString(requestType, info);
             }
+        }else if (requestType == Reboot){
+            ESP_LOGI("SpiAPI", "Rebooting device!");
+            // TODO: dismount sd-card, filesystem etc!
+            esp_restart();
+        }else if (requestType == RebootToOTAX){
+            int num_ota = count_bootable_ota_partitions();
+            if (uint8_param_0 >= num_ota){
+                ESP_LOGE("SpiAPI", "Requested OTA %d but only %d OTAs available!", uint8_param_0, num_ota);
+            }else{
+                // TODO: dismount sd-card, filesystem etc!
+                boot_into_slot(uint8_param_0);
+                ESP_LOGI("SpiAPI", "Rebooting device to OTA %d!", uint8_param_0);
+            }
+        }else{
+            ESP_LOGE("SpiAPI", "Unknown request type %d", (uint8_t)requestType);
+            result = true;
         }
     }
 }
