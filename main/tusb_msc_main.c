@@ -23,6 +23,7 @@
 #include "tusb_msc_storage.h"
 #include "esp_ota_ops.h"
 #include "spi_api.h"
+#include "ota_c6_sdcard.h"
 
 #ifdef CONFIG_EXAMPLE_STORAGE_MEDIA_SDMMC
 #include "sdmmc_cmd.h"
@@ -308,6 +309,10 @@ static void storage_mount_changed_cb(tinyusb_msc_event_t *event)
         first_time = true;
     }
     if (first_time && !tinyusb_msc_storage_in_use_by_usb_host()){
+        // check if updating c6 is desired
+        ESP_ERROR_CHECK(tinyusb_msc_storage_mount(BASE_PATH));
+        ota_c6_sd_perform(true, BASE_PATH "/c6_fw");
+        ESP_ERROR_CHECK(tinyusb_msc_storage_unmount());
         boot_into_slot(0);
     }
 }

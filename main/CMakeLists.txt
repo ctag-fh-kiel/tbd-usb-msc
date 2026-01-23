@@ -7,7 +7,7 @@ else()
 endif()
 
 idf_component_register(
-    SRCS tusb_msc_main.c spi_api.c
+    SRCS tusb_msc_main.c spi_api.c ota_c6_sdcard.c
     INCLUDE_DIRS .
     PRIV_REQUIRES "${priv_requires}"
 )

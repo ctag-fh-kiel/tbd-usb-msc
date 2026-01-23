@@ -1,3 +1,12 @@
+# USB Device Mass Storage Class
+- intended to be ota1 partition as housekeeping firmware
+- makes available sdcard thru usb msc class
+- upon dismount boots into ota0
+- runs spi cmd api
+- allows to flash c6 esp hosted slave firmware
+  - esp hosted slave firmware network_adapter.bin must be placed in sdcard folder "c6_fw" beforehand, e.g. when sd card is mounted on host pc
+
+
 | Supported Targets | ESP32-P4 | ESP32-S2 | ESP32-S3 |
 | ----------------- | -------- | -------- | -------- |
 
